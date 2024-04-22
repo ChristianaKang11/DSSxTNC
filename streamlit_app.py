@@ -1,35 +1,38 @@
 import numpy as np
-import altair as alt
 import pandas as pd
 import streamlit as st
 
-st.header('st.write')
+st.header("StreamSage 2.0")
+st.write("*An interactive tool to predict streamflow in ungaged locations across California.*")
+st.write(
+    """
+    ## How it Works
+    StreamSage 2.0 leverages USGS historical streamflow data from existing gages across California to predict streamflows at locations without gages. 
+    Enter the desired location to predict streamflow and select reference gages based on the suggestions provided.
+    """
+)
+with st.sidebar:
+    st.subheader("Configure Prediction")
+    location_input = st.text_input("Enter location", placeholder="Type here...")
+    
+    st.subheader("Gage Selection")
+    st.write("Select reference gages that will be used for predicting the streamflow.")
 
-# Example 1
+    # Dummy data for gage selection (This would be dynamic based on actual data)
+    gage_options = ['Gage 1', 'Gage 2', 'Gage 3', 'Gage 4', 'Gage 5']
+    selected_gages = st.multiselect("Select Gages", options=gage_options, default=gage_options[:20])
+    
+    # Button to perform calculation
+    calculate_button = st.button("Calculate Flow", help="Click to calculate the predicted streamflow")
+    if calculate_button:
+        st.success("Calculating streamflow for the selected location and gages...")
 
-st.write('Hello, *World!* :sunglasses:')
-
-# Example 2
-
-st.write(1234)
-
-# Example 3
-
-df = pd.DataFrame({
-     'first column': [1, 2, 3, 4],
-     'second column': [10, 20, 30, 40]
-     })
-st.write(df)
-
-# Example 4
-
-st.write('Below is a DataFrame:', df, 'Above is a dataframe.')
-
-# Example 5
-
-df2 = pd.DataFrame(
-     np.random.randn(200, 3),
-     columns=['a', 'b', 'c'])
-c = alt.Chart(df2).mark_circle().encode(
-     x='a', y='b', size='c', color='c', tooltip=['a', 'b', 'c'])
-st.write(c)
+st.write("---")
+st.write("## About StreamSage 2.0")
+st.write(
+    """
+    StreamSage 2.0 is a part of a larger initiative of The Nature Conservancy to improve water resource management in California. 
+    This tool aims to help researchers, policymakers, and the general public understand potential water 
+    availability and make informed decisions regarding water use in ungaged regions.
+    """
+)
