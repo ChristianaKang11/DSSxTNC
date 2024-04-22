@@ -4,7 +4,7 @@ import streamlit as st
 from datetime import datetime
 from locationCOMID_input import get_gages_by_comid
 
-st.header("StreamSage 2.0")
+st.title("StreamSage 2.0")
 st.write("*An interactive tool to predict streamflow in ungaged locations across California.*")
 st.write(
     """
@@ -34,7 +34,7 @@ with st.sidebar:
     # Button to perform calculation
     calculate_button = st.button("Calculate Flow", help="Click to calculate the predicted streamflow")
     if calculate_button:
-        st.success("Calculating streamflow for the selected location and gages...")
+        st.success("Calculating streamflow for the selected location/COMID...")
 
 st.write("---")
 st.write("## About StreamSage 2.0")
@@ -54,4 +54,5 @@ st.markdown(
 #     data = pd.read_csv("path.csv")
 #     return data
 # data = load_data()
-# gage_ids=get_gages_by_comid(data, COMID)
+# #if COMID:
+#      gage_ids=get_gages_by_comid(data, COMID) 
