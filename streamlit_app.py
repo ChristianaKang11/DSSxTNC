@@ -29,10 +29,12 @@ with st.sidebar:
 
 st.write("---")
 st.write("## About StreamSage 2.0")
-st.write(
+st.markdown(
     """
     StreamSage 2.0 is a part of a larger initiative of The Nature Conservancy to improve water resource management in California. 
+    This streamlit app is developed by [Data Science Society at Berkeley](https://dssberkeley.com/). 
     This tool aims to help researchers, policymakers, and the general public understand potential water 
     availability and make informed decisions regarding water use in ungaged regions.
-    """
+    """,
+    unsafe_allow_html=True
 )
