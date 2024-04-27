@@ -6,8 +6,6 @@ from datetime import datetime, timedelta
 from copy_of_sooyeon_manual_similarity_measure_expert_rescale_rfe import *
 import ast
 
-accesstoken_mark ='pk.eyJ1IjoibXJraWViYXJyIiwiYSI6ImNsb2Rxbm1tZzA0aHUyeHBmMGRhY2NtZ3UifQ.sfAJYCoOIo6s4Zm6-PrmJg',
-
 # Function to load data from CSV with proper caching
 @st.cache_data
 def load_data(csv_name):

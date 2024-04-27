@@ -28,7 +28,7 @@ import random
 features = pd.read_csv('features_df.csv')
 
 # Contains flow data linked to site IDs from January 2010 to December 2022 (Kirk's script, pulls from USGS with ulmo)
-flow_df = pd.read_csv('flow_df.csv')
+#flow_df = pd.read_csv('flow_df.csv')
 
 # Contains geopandas geometry (location) data
 geodf = pd.read_csv('geodf.csv')
