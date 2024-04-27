@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 from io import StringIO
+from copy_of_sooyeon_manual_similarity_measure_expert_rescale_rfe import *
 
 def load_data(csv_name):
     data = pd.read_csv(csv_name)
@@ -52,10 +53,13 @@ def get_top_n_gages(data, date_range, top_n=2):
 
     unique_gages = pd.Series(sum(filtered_df['ref_gages'].apply(eval).tolist(), [])).value_counts().head(top_n)
 
+    
+
+    print(unique_gages)
     return unique_gages
 
-
-def display_map(date_range, top_n=2, target_gage=None):
+# Function to create Plotly map
+def create_map(date_range, top_n=2, target_gage=None):
     start_date = pd.Timestamp(date_range[0])
     end_date = pd.Timestamp(date_range[1] if len(date_range) > 1 else date_range[0])
 
@@ -91,7 +95,7 @@ def display_map(date_range, top_n=2, target_gage=None):
         hovermode='closest',
         mapbox=dict(
             accesstoken='pk.eyJ1IjoibXJraWViYXJyIiwiYSI6ImNsb2Rxbm1tZzA0aHUyeHBmMGRhY2NtZ3UifQ.sfAJYCoOIo6s4Zm6-PrmJg',
-            style='outdoors', 
+            style='outdoors',  # Choose the mapbox style here
             center=dict(
                 lat=geometries_for_gages_df['latitude'].mean(),
                 lon=geometries_for_gages_df['longitude'].mean()
@@ -116,5 +120,5 @@ def display_map(date_range, top_n=2, target_gage=None):
     return fig
 
 st.title("Stream GageIDs Map")
-map = display_map(date_range, top_n, target_gage)
+map = create_map(date_range, top_n, target_gage)
 st.plotly_chart(map)
