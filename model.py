@@ -3,18 +3,23 @@ import numpy as np
 import pandas as pd
 import geopandas as gpd
 import random
-from datetime import datetime
+from datetime import datetime,timedelta
+import streamlit as st
 
 
+@st.cache_data
+def load_data():
+  # Contains stream metadata linked to site IDs (from StreamStats)
+  features = pd.read_csv('stream_stats_wtsh.csv')
 
-# Contains stream metadata linked to site IDs (from StreamStats)
-features = pd.read_csv('/content/drive/MyDrive/StreamSage_2024_DSS_TNC/Data_2024/stream_stats_wtsh.csv')
+  # Contains flow data linked to site IDs from January 2010 to December 2022 (pulled from USGS with ulmo)
+  flow_df = pd.read_csv("daily_flow_data_from_201001_202212.csv.gz", compression='gzip')
 
-# Contains flow data linked to site IDs from January 2010 to December 2022 (Kirk's script, pulls from USGS with ulmo)
-flow_df = pd.read_csv("/content/drive/MyDrive/StreamSage_2024_DSS_TNC/Data_2024/daily_flow_data_from_201001_202212.csv")
+  # Contains geopandas geometry (location) data
+  geodf = gpd.read_file('Site locations/StreamGages_SB19_v3c.shp')
+  return features, flow_df, geodf
 
-# Contains geopandas geometry (location) data
-geodf = gpd.read_file('/content/drive/MyDrive/StreamSage_2024_DSS_TNC/Data_2024/Site locations/StreamGages_SB19_v3c.shp')
+features, flow_df, geodf = load_data()
 
 # Convert all site IDs to strings for matching
 # In order to make all the datatype uniform
@@ -25,18 +30,19 @@ geodf['siteid_str'] = geodf['siteid'].astype(str)
 merged = features.merge(geodf[['siteid_str', 'geometry']], left_on='siteid_str', right_on='siteid_str')
 merged_gdf = gpd.GeoDataFrame(merged.drop(columns=['Unnamed: 0', 'Unnamed: 0.1', 'Unnamed: 0_x']))
 
+@st.cache_data
 def id_overlap(flow_df, features_df):
   flow_ids = pd.Series(flow_df['gage_id'].value_counts().index)
   features_ids = pd.Series(features_df['siteid'].value_counts().index)
   return flow_ids[flow_ids.isin(features_ids)]
-
+@st.cache_data
 def get_overlap_dfs(flow_df, features_df):
   overlap_id = id_overlap(flow_df, features_df)
   cleaned_flow = flow_df[flow_df['gage_id'].isin(overlap_id)]
   cleaned_features = features_df[features_df['siteid'].isin(overlap_id)]
   return cleaned_flow, cleaned_features
 
-
+@st.cache_data
 def date_overlap(flow_df, ref_id, target_id):
   """
   Returns a Series with the list of dates on which ref_id and target_id were both collecting data
@@ -75,6 +81,7 @@ def haversine(lat1, lon1, lat2, lon2):
     return c * r
 
 # normalizing features because using different scales
+@st.cache_data
 def normalize_features(df, features):
     for feature in features:
        df[feature] = (df[feature] - df[feature].mean()) / df[feature].std()
@@ -84,7 +91,7 @@ def normalize_features(df, features):
 # new columns are original column name + _norm
 # new dataframe with just the normalized features and ids
 # return similarity score
-
+@st.cache_data
 def get_similarity_measure(df, feature_dictionary, gage_id):
     """
     calculating the weighted euclidean similarity
@@ -106,12 +113,12 @@ def get_similarity_measure(df, feature_dictionary, gage_id):
     df = df.copy()
     df = drop_nan(df, feature_names)
 
-    ref_lat = df.iloc[[0]]['latitude'].values[0]
-    ref_lon = df.iloc[[0]]['longitude'].values[0]
+    ref_lat = df.loc[df['siteid'] == gage_id, 'latitude'].values[0]
+    ref_lon = df.loc[df['siteid'] == gage_id, 'longitude'].values[0]
 
     df['distance_to_ref'] = df.apply(lambda row: haversine(ref_lat, ref_lon, row['latitude'], row['longitude']), axis=1)
 
-    feature_dictionary['distance_to_ref'] = -0.74 #Assign negative weight to distance to favor closer reference gages
+    feature_dictionary['distance_to_ref'] = 0.5
 
     feature_names += ['distance_to_ref']
     normalize_features(df, feature_names)
@@ -120,23 +127,24 @@ def get_similarity_measure(df, feature_dictionary, gage_id):
     df[feature_names] = df[feature_names].multiply([feature_dictionary[feature] for feature in feature_names], axis=1)
 
     # Extract the features for the reference gauge, ensuring it's a Series for easy subtraction
-    reference_features = df.iloc[0]
+    reference_features = df.loc[df['siteid'] == gage_id, feature_names].iloc[0]
 
     # Calculate the Euclidean distance (similarity score) between the reference gauge and all others
     # Subtract the reference gauge features from each row, square, sum across columns, and square root
     df['similarity_score'] = df[feature_names].apply(lambda x: np.sqrt(((x - reference_features) ** 2).sum()), axis=1)
 
-    # changed this to table of siteids and similarity score so we can have match row lengths when we filter based on only needed ids
-    return df[['siteid', 'similarity_score']]
+    return df['similarity_score']
 
+feature_dictionary = {'ELEV': 0.2, 'FOREST': 0.2, 'LAKEAREA': 0.1}
 
 """# Dynamic Windowing"""
+# sizes = flow_df.groupby('gage_id').size().value_counts()
 counts = flow_df.groupby('gage_id').count()[['value']]
-
 counts['prop_recorded'] = counts['value'] / 4748 # 4748 days between January 1, 2010 and December 31, 2022
 zero_flows = flow_df[flow_df['value'] == 0].groupby('gage_id').count()[['value']]
 zero_flows['prop_zero'] = zero_flows['value'] / 4748
 
+@st.cache_data
 def id_overlap(flow_df, features_df):
   """
   Generates a series of all IDs that appear in both flow_df and features_df
@@ -148,7 +156,7 @@ def id_overlap(flow_df, features_df):
 
 # Generate list of gage IDs that appear in both flow_df and features
 id_overlap_series = id_overlap(flow_df, features).tolist()
-
+@st.cache_data
 def date_overlap(flow_df, ref_id, target_id):
   """
   Returns a Series with the list of dates on which ref_id and target_id were both collecting data
@@ -163,16 +171,27 @@ def date_overlap(flow_df, ref_id, target_id):
   date_series = ref_date_overlap['datetime']
   return date_series
 
-
+@st.cache_data
 def threshold(flow_df, target_id):
   # copy = flow_df.copy()
   copy = pd.DataFrame(id_overlap_series).rename({0: 'gage_id'}, axis=1)
   # copy['overlap_prop'] = copy.apply(lambda row: len(date_overlap(flow_df, target_id, row['gage_id'])) / 4748)
   copy['overlap_prop'] = copy.apply(lambda row: len(date_overlap(flow_df, target_id, row['gage_id'])) / 4748, axis=1)
   return copy
+new_counts = counts.reset_index()
 
+ids = pd.DataFrame(id_overlap_series).rename({0: 'gage_id'}, axis=1)
+mod_geodf = geodf.copy()
+mod_geodf['siteid_str'] = mod_geodf['siteid'].astype(str)
+# mod_geodf = mod_geodf[mod_geodf['siteid_str'].str.contains(r'^\d+$')].drop(columns='siteid_str')
+mod_geodf = mod_geodf[mod_geodf['siteid'].str.isnumeric()]
+# mod_geodf['siteid'] = mod_geodf['siteid'].astype(int)
+mod_geodf['siteid'] = mod_geodf['siteid'].apply(lambda x: int(x) if x.isdigit() else None)
+ids = gpd.GeoDataFrame(ids.merge(mod_geodf[['siteid', 'geometry']], left_on='gage_id', right_on='siteid')
+                          .merge(new_counts[['gage_id', 'prop_recorded']], on='gage_id'))
 
-def nearest_algorithm(geodf, siteid, threshold=0.0, n=1):
+@st.cache_data
+def nearest_algorithm(_geodf, siteid, threshold=0.0, n=1):
   """
   Find the n nearest reference gages in the GeoDataFrame to the target point specified by siteid that meet the threshold of recording.
 
@@ -184,10 +203,10 @@ def nearest_algorithm(geodf, siteid, threshold=0.0, n=1):
   # Extract target point location from given siteid
   # FOR FUTURE USE: target_point can be set to any latitude/longitude location
   # Instead of using a specific siteid, use shapely.point to define Point([x, y])
-  target_point = geodf.loc[geodf['siteid'] == siteid].iloc[0]['geometry']
+  target_point = _geodf.loc[_geodf['siteid'] == siteid].iloc[0]['geometry']
 
   # Calculate the distances from target_point to all points in geodf
-  copydf = geodf.copy()
+  copydf = _geodf.copy()
 
   target_point = copydf[copydf['siteid'] == siteid]['geometry'].iloc[0]
   copydf['distance'] = copydf.geometry.distance(target_point)
@@ -217,20 +236,22 @@ def nearest_algorithm(geodf, siteid, threshold=0.0, n=1):
     else:
       return pd.DataFrame({'siteid': closest_ids, 'distance': closest_distances, 'prop_recorded': closest_props})
 
-
-def ids_table(geodf, flowdf, featuresdf):
+@st.cache_data
+def ids_table(_geodf, flowdf, featuresdf):
   # find the gage ids that exist in both flowdf and featuresdf
   id_overlap_series = id_overlap(flowdf, featuresdf).tolist()
 
   # create the ids table: gage_id/siteid, geometry
   ids = pd.DataFrame(id_overlap_series).rename({0: 'gage_id'}, axis=1)
-  mod_geodf = geodf.copy()
+  mod_geodf = _geodf.copy()
   mod_geodf['siteid_str'] = mod_geodf['siteid'].astype(str)
-  mod_geodf = mod_geodf[mod_geodf['siteid_str'].str.contains(r'^\d+$')].drop(columns='siteid_str')
-  mod_geodf['siteid'] = mod_geodf['siteid'].astype(int)
+  mod_geodf = mod_geodf[mod_geodf['siteid'].str.isnumeric()]
+# mod_geodf['siteid'] = mod_geodf['siteid'].astype(int)
+  mod_geodf['siteid'] = mod_geodf['siteid'].apply(lambda x: int(x) if x.isdigit() else None)
   ids = gpd.GeoDataFrame(ids.merge(mod_geodf[['siteid', 'geometry']], left_on='gage_id', right_on='siteid'))
   return ids
 
+@st.cache_data
 def window_range(window_start='2010-01-01', window_end='2022-12-31'):
   date_start = datetime.strptime(window_start, '%Y-%m-%d').date()
   date_end = datetime.strptime(window_end, '%Y-%m-%d').date()
@@ -243,7 +264,21 @@ def window_range(window_start='2010-01-01', window_end='2022-12-31'):
   return date_list
 
 
-def similarity_sort(ids_table, siteid):
+id_overlap_series = id_overlap(flow_df, features).tolist()
+
+date_list = pd.DataFrame(flow_df.groupby('gage_id').agg({'datetime': lambda x: list(x)}))
+overlap_df = pd.DataFrame(id_overlap_series).rename({0: 'gage_id'}, axis=1)
+compiled_dates = overlap_df.merge(date_list, on='gage_id').rename({'datetime': 'date_list'}, axis=1)
+# compiled_dates['list_prop'] = compiled_dates.apply(lambda row: len(row['date_list']) / 4748, axis=1)
+
+ids_copy = ids.copy()
+new_df = ids_copy.merge(compiled_dates, on='gage_id')
+test_df = nearest_algorithm(new_df, 9429490, threshold=0.8, n=50)
+test_df = pd.merge(test_df, merged_gdf, on='siteid', how='inner')
+st.write(test_df)
+
+@st.cache_data
+def similarity_sort(_ids_table, siteid):
   """
   Find the n nearest reference gages in the GeoDataFrame to the target point specified by siteid that meet the threshold of recording.
 
@@ -258,12 +293,12 @@ def similarity_sort(ids_table, siteid):
   # Extract target point location from given siteid
   # FOR FUTURE USE: target_point can be set to any latitude/longitude location
   # Instead of using a specific siteid, use shapely.point to define Point([x, y])
-  target_point = ids_table.loc[ids_table['siteid'] == siteid].iloc[0]['geometry']
+  target_point = _ids_table.loc[_ids_table['siteid'] == siteid].iloc[0]['geometry']
 
   # Calculate the distances from target_point to all points in geodf
-  copydf = ids_table.copy()
+  copydf = _ids_table.copy()
 
-  hi = nearest_algorithm(ids_table, siteid, threshold=0.8, n=50)
+  hi = nearest_algorithm(new_df, siteid, threshold=0.8, n=50)
   hi = pd.merge(hi, merged_gdf, on='siteid', how='inner')
 
   similarity_df = get_similarity_measure(hi, {'LAKEAREA': 0.64,	'PRECIP': 0.80}, siteid) 
@@ -278,7 +313,8 @@ def similarity_sort(ids_table, siteid):
 
   return merged_similarity_ids_df
 
-def dynamic_window(geodf, flowdf, featuresdf, siteid, window_start='', window_end='', n=1):
+@st.cache_data
+def dynamic_window(_geodf, flowdf, featuresdf, siteid, window_start='', window_end='', n=1):
 
   """
   For each day between window_start and window_end, returns a DataFrame containing the n most similar reference gages to a given target.
@@ -337,7 +373,7 @@ def dynamic_window(geodf, flowdf, featuresdf, siteid, window_start='', window_en
 
 
 """# Expert Rescale"""
-
+@st.cache_data
 def gage_stats(features_df, gage_id):
     gage_features = features_df.loc[features_df["siteid"] == gage_id]
     gage_map, gage_da = list(gage_features['PRECIP'])[0], list(gage_features["totdasqmi"])[0]
@@ -391,14 +427,14 @@ def expert_rescale(flow_df, features_df, gage_id, ref_id):
 
 The final predictive function that calls dynamic windowing and expert rescale within it, and make target gage id, window_start, window_end as the parameters
 """
-
+@st.cache_data
 def predictedflow(target_id, window_start, window_end):
-  target_gage_id = target_id
-  target_map, target_da = gage_stats(features, target_gage_id)
+
+  target_map, target_da = gage_stats(features, target_id)
   start_date = window_start
   end_date = window_end
 
-  reference_gages = dynamic_window(geodf, flow_df, features, target_gage_id, window_start=start_date, window_end=end_date, n=3)
+  reference_gages = dynamic_window(geodf, flow_df, features, target_id, window_start=start_date, window_end=end_date, n=3)
 
   flow_df_copy = flow_df.copy()
   flow_df_copy = flow_df_copy.loc[(flow_df_copy['datetime'] >= start_date) & (flow_df_copy['datetime'] <= end_date)]
@@ -422,7 +458,7 @@ def predictedflow(target_id, window_start, window_end):
   reference_gages['gage_1_flow'] = flow_series[:, 0]
   reference_gages['gage_2_flow'] = flow_series[:, 1]
   reference_gages['gage_3_flow'] = flow_series[:, 2]
-  reference_gages['observed_flow'] = flow_df_copy[flow_df_copy['gage_id'] == target_gage_id]['value']
+  reference_gages['observed_flow'] = flow_df_copy[flow_df_copy['gage_id'] == target_id]['value']
   reference_gages["predicted flow value"] = reference_gages[["gage_1_flow", "gage_2_flow", "gage_3_flow"]].mean(axis=1)
   output_df = reference_gages[["date", "predicted flow value"]]
   return output_df
