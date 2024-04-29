@@ -11,29 +11,25 @@ st.write(
     """
     ## How it Works
     StreamSage 2.0 leverages USGS historical streamflow data from existing gages across California to predict streamflows at locations without gages. 
-    Enter the desired location/COMID to predict streamflow and select reference gages based on the suggestions provided.
-    """
+    Enter the desired Gage ID to get predicted stream flow. More details about our model please refer to our [Github repository](https://github.com/ChristianaKang11/DSSxTNC.git)
+    """,
+    unsafe_allow_html=True
 )
+
 with st.sidebar:
-    #Location input
+     #Location(Gage ID) Input
     st.subheader("Configure Prediction")
     gage_id = st.text_input("Enter Gage ID", placeholder="Type here...")
-    st.write("or")
-    COMID= st.text_input("Enter COMID", placeholder="Type here...")
-    # Date range selection
-    st.subheader("Select Date Range")
-    window_start = st.date_input("Start Date", datetime(2010, 1, 1))
-    window_end = st.date_input("End Date", datetime(2022, 12, 31))
-    # Gage selection
-    st.subheader("Gage Selection")
-    st.write("Select reference gages that will be used for predicting the streamflow.")
+    if gage_id:
+        gage_id = int(gage_id)
+    # st.write("or")
+    # COMID= st.text_input("Enter COMID", placeholder="Type here...")
 
-    
     
     # Button to perform calculation
     calculate_button = st.button("Calculate Flow", help="Click to calculate the predicted streamflow")
     if calculate_button:
-        st.success("Calculating streamflow for the selected location/COMID...")
+        st.success("Calculating streamflow for the selected GageID...")
 
 if calculate_button:
     prediction = model.predictedflow(gage_id, window_start, window_end)
