@@ -3,6 +3,7 @@ import pandas as pd
 import streamlit as st
 from datetime import datetime
 from locationCOMID_input import get_gages_by_comid
+import model
 
 st.title("StreamSage 2.0")
 st.write("*An interactive tool to predict streamflow in ungaged locations across California.*")
@@ -16,7 +17,7 @@ st.write(
 with st.sidebar:
     #Location input
     st.subheader("Configure Prediction")
-    location_input = st.text_input("Enter location", placeholder="Type here...")
+    gage_id = st.text_input("Enter Gage ID", placeholder="Type here...")
     st.write("or")
     COMID= st.text_input("Enter COMID", placeholder="Type here...")
     # Date range selection
@@ -27,14 +28,16 @@ with st.sidebar:
     st.subheader("Gage Selection")
     st.write("Select reference gages that will be used for predicting the streamflow.")
 
-    # Dummy data for gage selection (This would be dynamic based on actual data)
-    gage_options = ['Gage 1', 'Gage 2', 'Gage 3', 'Gage 4', 'Gage 5'] #Replace with output of dynamic windowing
-    selected_gages = st.multiselect("Select Gages", options=gage_options, default=gage_options[:20])
+    
     
     # Button to perform calculation
     calculate_button = st.button("Calculate Flow", help="Click to calculate the predicted streamflow")
     if calculate_button:
         st.success("Calculating streamflow for the selected location/COMID...")
+
+if calculate_button:
+    prediction = model.predictedflow(gage_id, window_start, window_end)
+    st.write(prediction)
 
 st.write("---")
 st.write("## About StreamSage 2.0")
